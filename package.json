@@ -1,0 +1,15 @@
+{
+  "name": "ytbtag",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "lambda-log": "^3.0.0",
+    "youtube-dl": "^3.5.0"
+  }
+}

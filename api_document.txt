@@ -1,0 +1,145 @@
+JY Video Analysis PoC - HTTPS RESTful API, Version 1
+--------------------------------------------------------------------------------
+
+概述：
+
+JY Video Analysis PoC采用AWS Serverless技术作为后端服务支撑，所有API均为HTTPS URL，并完全遵循RESTful API设计规范。
+所有PUT、DELETE、GET方法将保证满足Idempotence特性。
+
+被标注为 * 的API表示即将或已经废弃，将来有可能被删除，请勿继续使用。
+
+为了防止非法用户调用API(被攻击)造成服务端资源浪费，AWS API Gateway为API分配了Api Key。
+所有API调用都需要添加 "x-api-key" 头，各个环境下的取值为：
+
+dev   ：DPJgglCtyB1ruA8jWxnUc12hlN2YkkGAa1CMKstC
+
+返回失败的错误说明：
+Status Code: 400 Bad Request               (提交的Body格式不正确或其他因客户端调用API不当引起的错误)
+Status Code: 401 Unauthorized              (没有Authorization和没有x-api-key头，或头内容不正确)
+Status Cose: 403 Forbidden                 (认证失败、请求时指定了错误的HTTP Method或Resource)
+Status Code: 404 Not Found                 (访问的数据不存在)
+Status Code: 429 Too Many Requests         (当前请求过多，应稍后再试)
+Status Code: 500/502 Internal Server Error (服务器处理消息时遇到未知错误)
+
+--------------------------------------------------------------------------------
+
+API：
+
+1.分析视频(AnalyzeVideo)
+POST https://poc02.awserverless.com/v{vid}-{stage}/videos/{website}/analysis
+Content-Type: application/json
+Body:
+{
+  "urls": [   string array  // 请求分析的视频站点URL列表。出于测试目的，目前该列表只能填写1个URL，提交大于1的URL列表会返回400错误。
+    "url_0",  string        // 视频站点URL
+    "url_1",
+    ...
+  ]
+}
+
+说明：提交一个视频分析任务，从指定站点(website)下载并分析视频，为视频打标签。
+      {vid}为API版本号，目前为"1"。
+      {stage}为部署环境，目前为"dev"。
+      {website}为视频来源，目前仅支持"youtube"。
+
+返回成功：
+Status Code: 200 OK
+Content-Type: application/json
+Body:
+{
+  "jobName" : string,  // 被分析视频的逻辑名称
+  "jobId"   : string   // Rekognition执行分析的JobId
+}
+
+返回失败：
+Status Cose: 400 Bad Request
+Status Cose: 403 Forbidden
+Status Code: 429 Too Many Requests
+Status Code: 5xx Internal Server Error
+
+示例：
+POST https://poc02.awserverless.com/v1-dev/videos/youtube/analysis
+x-api-key: DPJgglCtyB1ruA8jWxnUc12hlN2YkkGAa1CMKstC
+Content-Type: application/json
+{
+    "urls": [
+        "https://www.youtube.com/watch?v=pORmHdrOJQw"
+    ]
+}
+200 OK
+Content-Type: application/json
+{
+    "jobName": "pORmHdrOJQw.mp4",
+    "jobId": "006762b2b126903a219328a541211db9c367ccea090b39a23f7fc527ba0e9b4e"
+}
+
+================================================================================
+
+2. 获取视频分析信息(GetAnalysisResults)
+GET https://poc02.awserverless.com/v{vid}-{stage}/videos/{website}/analysis?id={jobId}&count={labelCount}&debug={true|false}
+
+说明：获取之前提交的视频分析任务结果，得到视频标签信息。标签列表按整个视频中出现标签的总置信等级(TotalConfidence)倒排序返回。
+      {vid}为API版本号，目前为"1"。
+      {stage}为部署环境，目前为"dev"。
+      {website}为视频来源，目前仅支持"youtube"。
+      {jobId}为提交视频分析请求时返回的"jobId"。必填。
+      {labelCount}为返回的最大标签数量。选填，默认返回全部标签。debug参数开启时无效。
+      {debug}为返回Rekognition生成的原始标签信息。选填，默认关闭。
+
+返回成功：
+Status Code: 200 OK
+Content-Type: application/json
+Body:
+{
+  "status":   string                 // 当前视频分析状态：
+                                     // "IN_PROGRESS" - Rekognition服务正在处理中
+                                     // "SUCCEEDED"   - 已处理完成，可获取标签
+                                     // "FAILED"      - 处理失败
+  "labels": [ object array.          // 标签对象数组
+    {
+      "label"            : string,   // 标签名称
+      "count"            : integer,  // 标签在视频中累积出现过的次数
+      "averageConfidence": float,    // 标签的平均置信等级，totalConfidence / count
+      "totalConfidence"  : float.    // 标签的总置信等级。每次标签在视频中被标记出来时累加该值。标签列表以此进行倒排序
+    },
+    ...
+  ]
+}
+注意：
+debug开启时返回的结果请参考此文档：
+https://docs.aws.amazon.com/rekognition/latest/dg/API_GetLabelDetection.html
+
+返回失败：
+Status Code: 401 Unauthorized
+Status Cose: 403 Forbidden
+Status Code: 429 Too Many Requests
+Status Code: 5xx Internal Server Error
+
+示例：
+GET https://poc02.awserverless.com/v1-dev/videos/youtube/analysis?id=006762b2b126903a219328a541211db9c367ccea090b39a23f7fc527ba0e9b4e&count=10
+x-api-key: DPJgglCtyB1ruA8jWxnUc12hlN2YkkGAa1CMKstC
+200 OK
+Content-Type: application/json
+{
+    "status": "SUCCEEDED",
+    "labels": [
+        {
+            "label": "Art",
+            "count": 40,
+            "averageConfidence": 60.62163200378418,
+            "totalConfidence": 2424.865280151367
+        },
+        {
+            "label": "Graphics",
+            "count": 40,
+            "averageConfidence": 60.57731580734253,
+            "totalConfidence": 2423.092632293701
+        },
+        {
+            "label": "Water",
+            "count": 26,
+            "averageConfidence": 68.33399141751804,
+            "totalConfidence": 1776.6837768554688
+        }
+    ]
+}

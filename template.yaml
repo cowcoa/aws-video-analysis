@@ -1,0 +1,201 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >
+  Analyze videos from different sites and tag these videos.
+Parameters:
+  ResourceNamePrefix:
+    Default: 'zxaws-poc'
+    Type: String
+    Description: >
+      Resource name in this template should be prefixed with this word
+  ApiVersion:
+    Default: 'v1'
+    Type: String
+    Description: >
+      Version name of the current API
+  DeploymentType:
+    Default: dev
+    Type: String
+    Description: >
+      Corresponding to API Gateway stage. Enter dev or prod. Default is dev
+    AllowedValues:
+      - dev
+      - prod
+  VideoCacheBucketName:
+    Description: >
+      S3 bucket holding the video files downloaded from video websites.
+    Type: String
+    MinLength: 8
+    MaxLength: 32
+    AllowedPattern: '^[a-zA-Z][-a-zA-Z0-9]*$'
+    Default: video-cache-us-east-1
+Resources:
+  ApiGatewayApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      ApiKeySourceType: HEADER
+      Body:
+        swagger: 2.0
+        info:
+          title: !Ref AWS::StackName
+          version: 2.0.0
+        paths:
+          '/videos/{website}/analysis':
+            post:
+              security:
+                - api_key: []
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri:
+                  'Fn::Sub': >-
+                    arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AnalyzeVideo.Arn}/invocations
+            get:
+              security:
+                - api_key: []
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri:
+                  'Fn::Sub': >-
+                    arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetAnalysisResults.Arn}/invocations
+        securityDefinitions:
+          api_key:
+            type: "apiKey"
+            name: "x-api-key"
+            in: "header"
+  ApiGatewayDeployment:
+    Type: 'AWS::ApiGateway::Deployment'
+    DependsOn: ApiGatewayApi
+    Properties:
+      RestApiId: !Ref ApiGatewayApi
+      Description: 'Change HTTP Action to POST'
+      StageName: !Ref DeploymentType
+      StageDescription:
+        CachingEnabled: False
+        CacheClusterEnabled: False
+        # Member must satisfy enum value set: [58.2, 13.5, 28.4, 237, 0.5, 118, 6.1, 1.6]
+        CacheClusterSize: '0.5'
+        CacheTtlInSeconds: 60
+  ApiGatewayApiKey:
+    Type: AWS::ApiGateway::ApiKey
+    DependsOn: ApiGatewayDeployment
+    Properties:
+      Name: !Join ['-', [!Ref ResourceNamePrefix, 'video-analysis']]
+      Description: "API key for zxaws-poc video analysis apis."
+      Enabled: "true"
+      StageKeys:
+        - RestApiId:
+            !Ref ApiGatewayApi
+          StageName: !Ref DeploymentType
+  ApiGatewayUsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn: ApiGatewayDeployment
+    Properties:
+      ApiStages:
+        - ApiId: !Ref ApiGatewayApi
+          Stage: !Ref DeploymentType
+      Description: "Api usage plan for zxaws-poc video analysis apis."
+      UsagePlanName: !Join ['-', [!Ref ResourceNamePrefix, 'video-analysis']]
+  ApiGatewayUsagePlanKey:
+    Type: AWS::ApiGateway::UsagePlanKey
+    DependsOn:
+      - ApiGatewayUsagePlan
+      - ApiGatewayApiKey
+    Properties:
+      KeyId: !Ref ApiGatewayApiKey
+      KeyType: API_KEY
+      UsagePlanId: !Ref ApiGatewayUsagePlan
+  ApiGatewayDomainName:
+    Type: 'AWS::ApiGateway::DomainName'
+    Properties:
+      DomainName: poc02.awserverless.com
+      CertificateArn: >-
+        arn:aws:acm:us-east-1:027226252545:certificate/07d4e2fc-bfb3-4b4e-907b-928a8fa411d6
+  ApiGatewayBasePathMapping:
+    Type: 'AWS::ApiGateway::BasePathMapping'
+    DependsOn: ApiGatewayDeployment
+    Properties:
+      BasePath: !Join ['-', [!Ref ApiVersion, !Ref DeploymentType]]
+      DomainName: poc02.awserverless.com
+      RestApiId: !Ref ApiGatewayApi
+      Stage: !Ref DeploymentType
+  AnalyzeVideoRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join ['-', [!Ref ResourceNamePrefix, 'video-analysis']]
+      Description: >
+        'Role for executing analyze video lambda function.'
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AWSLambda_FullAccess'
+        - 'arn:aws:iam::aws:policy/AWSLambdaExecute'
+        - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonRekognitionFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+  AnalyzeVideo:
+    Type: 'AWS::Lambda::Function'
+    DependsOn: AnalyzeVideoRole
+    Properties:
+      FunctionName: !Join ['-', [!Ref ResourceNamePrefix, 'AnalyzeVideo']]
+      Description: 'Download video from website and tag it.'
+      MemorySize: 512
+      Handler: analyze-video/index.handler
+      Role: !GetAtt AnalyzeVideoRole.Arn
+      Timeout: 30
+      Runtime: nodejs12.x
+      ReservedConcurrentExecutions: 10
+      Environment:
+        Variables:
+          S3_VIDEO_CACHE_BUCKET: !Join ['-', [!Ref ResourceNamePrefix, !Ref VideoCacheBucketName]]
+  AnalyzeVideoPermission:
+    Type: 'AWS::Lambda::Permission'
+    DependsOn: AnalyzeVideo
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
+      FunctionName: !Join
+        - ':'
+        - - !GetAtt AnalyzeVideo.Arn
+      SourceArn: !Sub >-
+        arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/POST/videos/{website}/analysis
+  GetAnalysisResults:
+    Type: 'AWS::Lambda::Function'
+    DependsOn: AnalyzeVideoRole
+    Properties:
+      FunctionName: !Join ['-', [!Ref ResourceNamePrefix, 'GetAnalysisResults']]
+      Description: 'Get analysis results of video by job id.'
+      MemorySize: 256
+      Handler: get-analysis-results/index.handler
+      Role: !GetAtt AnalyzeVideoRole.Arn
+      Timeout: 30
+      Runtime: nodejs12.x
+      ReservedConcurrentExecutions: 10
+  GetAnalysisResultsPermission:
+    Type: 'AWS::Lambda::Permission'
+    DependsOn: GetAnalysisResults
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      Principal: apigateway.amazonaws.com
+      FunctionName: !Join
+        - ':'
+        - - !GetAtt GetAnalysisResults.Arn
+      SourceArn: !Sub >-
+        arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/GET/videos/{website}/analysis
+  VideoCacheBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join ['-', [!Ref ResourceNamePrefix, !Ref VideoCacheBucketName]]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
