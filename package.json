@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "lambda-log": "^3.0.0",
+    "moment-timezone": "^0.5.33",
     "youtube-dl": "^3.5.0"
   }
 }

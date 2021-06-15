@@ -1,4 +1,4 @@
-JY Video Analysis PoC - HTTPS RESTful API, Version 1
+JY Video Analysis PoC - HTTPS RESTful API, Version 1.1
 --------------------------------------------------------------------------------
 
 概述：
@@ -19,7 +19,7 @@ Status Code: 401 Unauthorized              (没有Authorization和没有x-api-ke
 Status Cose: 403 Forbidden                 (认证失败、请求时指定了错误的HTTP Method或Resource)
 Status Code: 404 Not Found                 (访问的数据不存在)
 Status Code: 429 Too Many Requests         (当前请求过多，应稍后再试)
-Status Code: 500/502 Internal Server Error (服务器处理消息时遇到未知错误)
+Status Code: 500 Internal Server Error (服务器处理消息时遇到未知错误)
 
 --------------------------------------------------------------------------------
 
@@ -30,32 +30,26 @@ POST https://poc02.awserverless.com/v{vid}-{stage}/videos/{website}/analysis
 Content-Type: application/json
 Body:
 {
-  "urls": [   string array  // 请求分析的视频站点URL列表。出于测试目的，目前该列表只能填写1个URL，提交大于1的URL列表会返回400错误。
+  "urls": [   string array  // 请求分析的视频站点URL列表
     "url_0",  string        // 视频站点URL
     "url_1",
     ...
   ]
 }
 
-说明：提交一个视频分析任务，从指定站点(website)下载并分析视频，为视频打标签。
+说明：提交一个视频分析任务，后端将从指定站点(website)下载并分析视频(urls)，为视频打标签。
       {vid}为API版本号，目前为"1"。
       {stage}为部署环境，目前为"dev"。
       {website}为视频来源，目前仅支持"youtube"。
 
 返回成功：
 Status Code: 200 OK
-Content-Type: application/json
-Body:
-{
-  "jobName" : string,  // 被分析视频的逻辑名称
-  "jobId"   : string   // Rekognition执行分析的JobId
-}
 
 返回失败：
 Status Cose: 400 Bad Request
 Status Cose: 403 Forbidden
 Status Code: 429 Too Many Requests
-Status Code: 5xx Internal Server Error
+Status Code: 500 Internal Server Error
 
 示例：
 POST https://poc02.awserverless.com/v1-dev/videos/youtube/analysis
@@ -63,27 +57,24 @@ x-api-key: DPJgglCtyB1ruA8jWxnUc12hlN2YkkGAa1CMKstC
 Content-Type: application/json
 {
     "urls": [
-        "https://www.youtube.com/watch?v=pORmHdrOJQw"
+        "https://www.youtube.com/watch?v=pORmHdrOJQw",
+        "https://www.youtube.com/watch?v=oitvawB2ZGQ",
+        "https://www.youtube.com/watch?v=yRzyTCukkSA"
     ]
 }
 200 OK
-Content-Type: application/json
-{
-    "jobName": "pORmHdrOJQw.mp4",
-    "jobId": "006762b2b126903a219328a541211db9c367ccea090b39a23f7fc527ba0e9b4e"
-}
 
 ================================================================================
 
 2. 获取视频分析信息(GetAnalysisResults)
-GET https://poc02.awserverless.com/v{vid}-{stage}/videos/{website}/analysis?id={jobId}&count={labelCount}&debug={true|false}
+GET https://poc02.awserverless.com/v{vid}-{stage}/videos/{website}/analysis?url={jobUrl}&count={labelCount}&debug={true|false}
 
-说明：获取之前提交的视频分析任务结果，得到视频标签信息。标签列表按整个视频中出现标签的总置信等级(TotalConfidence)倒排序返回。
+说明：获取之前提交的视频分析任务结果，得到视频标签列表信息。标签列表按整个视频中出现标签的总置信等级(TotalConfidence)倒排序返回。
       {vid}为API版本号，目前为"1"。
       {stage}为部署环境，目前为"dev"。
       {website}为视频来源，目前仅支持"youtube"。
-      {jobId}为提交视频分析请求时返回的"jobId"。必填。
-      {labelCount}为返回的最大标签数量。选填，默认返回全部标签。debug参数开启时无效。
+      {url}为提交视频分析请求时URL列表中的URL。必填。
+      {count}为返回的最大标签数量。选填，默认返回全部标签。debug参数开启时无效。
       {debug}为返回Rekognition生成的原始标签信息。选填，默认关闭。
 
 返回成功：
@@ -110,13 +101,13 @@ debug开启时返回的结果请参考此文档：
 https://docs.aws.amazon.com/rekognition/latest/dg/API_GetLabelDetection.html
 
 返回失败：
-Status Code: 401 Unauthorized
+Status Code: 400 Bad Request             (提交的视频URL没有被分析过，或分析任务已提交但正在队列中等待)
 Status Cose: 403 Forbidden
 Status Code: 429 Too Many Requests
-Status Code: 5xx Internal Server Error
+Status Code: 500 Internal Server Error
 
 示例：
-GET https://poc02.awserverless.com/v1-dev/videos/youtube/analysis?id=006762b2b126903a219328a541211db9c367ccea090b39a23f7fc527ba0e9b4e&count=10
+GET https://poc02.awserverless.com/v1-dev/videos/youtube/analysis?url=https://www.youtube.com/watch?v=9TvFFD94Cu8&count=3
 x-api-key: DPJgglCtyB1ruA8jWxnUc12hlN2YkkGAa1CMKstC
 200 OK
 Content-Type: application/json

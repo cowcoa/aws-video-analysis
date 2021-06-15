@@ -7,6 +7,13 @@ const log = require('lambda-log');
 const AWS = require('aws-sdk');
 // Global objects & variables
 const rekognition = new AWS.Rekognition();
+const dynamodb = new AWS.DynamoDB();
+// Get evn variables
+const VIDEO_TASK_DDB_TABLE = process.env['VIDEO_TASK_DDB_TABLE'];
+
+function isEmptyObject(obj) {
+    return !Object.keys(obj).length;
+}
 
 function constructHttpResponse(code, body) {
     let response;
@@ -21,6 +28,25 @@ function constructHttpResponse(code, body) {
         };
     }
     return response;
+}
+
+function getCachedVideoTask(videoUrl) {
+    return new Promise((resolve, reject) => {
+        let params = {
+            Key: {
+                "VideoUrl": { S: videoUrl }
+            }
+        };
+        params.TableName = VIDEO_TASK_DDB_TABLE;
+        
+        dynamodb.getItem(params, function(err, data) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(data);
+            }
+        });
+    });
 }
 
 function getLabelDetection(jobId) {
@@ -84,29 +110,41 @@ exports.handler = async function(event, context) {
     // Set log level first
     log.options.debug = true;
     
-    log.debug('Event:', event);
-    log.debug('Context:', context);
+    log.debug('Event: ', event);
+    log.debug('Context: ', context);
+    log.debug('VIDEO_TASK_DDB_TABLE: ', VIDEO_TASK_DDB_TABLE);
     
     // Get video website info.
     let videoSource = event.pathParameters.website;
-    log.debug('Video Source:', videoSource);
+    log.debug('VideoSource: ', videoSource);
+    
+    // get videoUrl
+    let videoUrl = event.queryStringParameters != null ? event.queryStringParameters.url : undefined;
+    log.debug('VideoUrl: ', videoUrl);
     
     // Get JobId
-    let jobId = event.queryStringParameters != null ? event.queryStringParameters.id : undefined;
-    log.debug('JobId:', jobId);
-    // Get max labels count
-    let count = event.queryStringParameters != null ? event.queryStringParameters.count : undefined;
-    // count = parseInt(count, 10);
-    log.debug('Count:', count);
-    // Debug flag
-    let debug = event.queryStringParameters != null ? event.queryStringParameters.debug : undefined;
-    debug = (debug === 'true');
-    log.debug('Debug:', debug);
+    let jobId = undefined;
+    let ddbRes = await getCachedVideoTask(videoUrl);
+    log.debug('getCachedVideoTask response: ', JSON.stringify(ddbRes));
+    
+    if (!isEmptyObject(ddbRes)) {
+        jobId = ddbRes.Item.JobId.S;
+    }
+    log.debug('JobId: ', jobId);
     
     if (jobId === undefined) {
         let response = constructHttpResponse(400, { message: 'No JobId' });
         return response;
     }
+    
+    // Get max labels count
+    let count = event.queryStringParameters != null ? event.queryStringParameters.count : undefined;
+    // count = parseInt(count, 10);
+    log.debug('Max label count: ', count);
+    // Debug flag
+    let debug = event.queryStringParameters != null ? event.queryStringParameters.debug : undefined;
+    debug = (debug === 'true');
+    log.debug('Debug enabled: ', debug);
     
     try {
         let response_body = {

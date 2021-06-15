@@ -119,6 +119,35 @@ Resources:
       DomainName: poc02.awserverless.com
       RestApiId: !Ref ApiGatewayApi
       Stage: !Ref DeploymentType
+  VideoDeadLetterQueue:
+    Type: AWS::SQS::Queue
+#    Properties:
+#      QueueName: 'Video-Analysis-Dead-Queue'
+  VideoTaskQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: 'Video-Analysis-Queue'
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 300
+      RedrivePolicy: 
+        deadLetterTargetArn: !GetAtt VideoDeadLetterQueue.Arn
+        maxReceiveCount: 2
+  VideoTaskTable:
+    Type: 'AWS::DynamoDB::Table'
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: VideoUrl
+          AttributeType: S
+      KeySchema:
+        - AttributeName: VideoUrl
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: '1'
+        WriteCapacityUnits: '1'
+      TableName: !Join ['-', [!Ref ResourceNamePrefix, 'video-task-table']]
+      TimeToLiveSpecification:
+        AttributeName: TimeToLive
+        Enabled: true
   AnalyzeVideoRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -141,6 +170,8 @@ Resources:
         - 'arn:aws:iam::aws:policy/AmazonS3FullAccess'
         - 'arn:aws:iam::aws:policy/AmazonRekognitionFullAccess'
         - 'arn:aws:iam::aws:policy/AmazonSNSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonSQSFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
   AnalyzeVideo:
     Type: 'AWS::Lambda::Function'
     DependsOn: AnalyzeVideoRole
@@ -156,6 +187,7 @@ Resources:
       Environment:
         Variables:
           S3_VIDEO_CACHE_BUCKET: !Join ['-', [!Ref ResourceNamePrefix, !Ref VideoCacheBucketName]]
+          VIDEO_TASK_QUEUE_URL: !Ref VideoTaskQueue
   AnalyzeVideoPermission:
     Type: 'AWS::Lambda::Permission'
     DependsOn: AnalyzeVideo
@@ -167,6 +199,29 @@ Resources:
         - - !GetAtt AnalyzeVideo.Arn
       SourceArn: !Sub >-
         arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${ApiGatewayApi}/*/POST/videos/{website}/analysis
+  AnalysisVideoTask:
+    Type: 'AWS::Lambda::Function'
+    DependsOn: AnalyzeVideoRole
+    Properties:
+      FunctionName: !Join ['-', [!Ref ResourceNamePrefix, 'AnalysisVideoTask']]
+      Description: 'Download video from website and tag it.'
+      MemorySize: 512
+      Handler: analysis-video-task/index.handler
+      Role: !GetAtt AnalyzeVideoRole.Arn
+      Timeout: 60
+      Runtime: nodejs12.x
+      ReservedConcurrentExecutions: 10
+      Environment:
+        Variables:
+          S3_VIDEO_CACHE_BUCKET: !Join ['-', [!Ref ResourceNamePrefix, !Ref VideoCacheBucketName]]
+          VIDEO_TASK_DDB_TABLE: !Ref VideoTaskTable
+  LambdaFunctionEventSourceMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      BatchSize: 5
+      Enabled: true
+      EventSourceArn: !GetAtt VideoTaskQueue.Arn
+      FunctionName: !GetAtt AnalysisVideoTask.Arn
   GetAnalysisResults:
     Type: 'AWS::Lambda::Function'
     DependsOn: AnalyzeVideoRole
@@ -179,6 +234,9 @@ Resources:
       Timeout: 30
       Runtime: nodejs12.x
       ReservedConcurrentExecutions: 10
+      Environment:
+        Variables:
+          VIDEO_TASK_DDB_TABLE: !Ref VideoTaskTable
   GetAnalysisResultsPermission:
     Type: 'AWS::Lambda::Permission'
     DependsOn: GetAnalysisResults
@@ -199,3 +257,8 @@ Resources:
         BlockPublicPolicy: true
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteRule
+            Status: Enabled
+            ExpirationInDays: 1
