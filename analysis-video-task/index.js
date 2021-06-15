@@ -65,16 +65,17 @@ function uploadVideoObject(objectKey, passtrough) {
     });
 }
 
-function startLabelDetection(objectKey) {
-    log.debug("StartLabelDetection on " + objectKey + " in s3 bucket " + VIDEO_CACHE_BUCKET);
+function startLabelDetection(videoTaskData) {
+    log.debug("StartLabelDetection on " + videoTaskData.s3key + " in s3 bucket " + VIDEO_CACHE_BUCKET);
     return new Promise((resolve, reject) => {
         let params = {
             Video: {
                 S3Object: {
                     Bucket: VIDEO_CACHE_BUCKET,
-                    Name: objectKey
+                    Name: videoTaskData.s3key
                 }
-            }
+            },
+            ClientRequestToken: videoTaskData.id
         };
         
         rekognition.startLabelDetection(params, function(err, data) {
@@ -130,7 +131,7 @@ exports.handler = async function(event, context) {
         await uploadVideoObject(videoTaskData.s3key, passtrough);
         
         // Start Rekognition video label detection task
-        let jobRes = await startLabelDetection(videoTaskData.s3key);
+        let jobRes = await startLabelDetection(videoTaskData);
         videoTaskData.jobId = jobRes.JobId;
         
         let ddbRes = await cacheVideoTask(videoTaskData);
