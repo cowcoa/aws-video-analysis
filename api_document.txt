@@ -1,9 +1,9 @@
-JY Video Analysis PoC - HTTPS RESTful API, Version 1.1
+Video Analysis PoC - HTTPS RESTful API, Version 1.1
 --------------------------------------------------------------------------------
 
 概述：
 
-JY Video Analysis PoC采用AWS Serverless技术作为后端服务支撑，所有API均为HTTPS URL，并完全遵循RESTful API设计规范。
+Video Analysis PoC采用AWS Serverless技术作为后端服务支撑，所有API均为HTTPS URL，并完全遵循RESTful API设计规范。
 所有PUT、DELETE、GET方法将保证满足Idempotence特性。
 
 被标注为 * 的API表示即将或已经废弃，将来有可能被删除，请勿继续使用。
@@ -19,7 +19,7 @@ Status Code: 401 Unauthorized              (没有Authorization和没有x-api-ke
 Status Cose: 403 Forbidden                 (认证失败、请求时指定了错误的HTTP Method或Resource)
 Status Code: 404 Not Found                 (访问的数据不存在)
 Status Code: 429 Too Many Requests         (当前请求过多，应稍后再试)
-Status Code: 500 Internal Server Error (服务器处理消息时遇到未知错误)
+Status Code: 500 Internal Server Error     (服务器处理消息时遇到未知错误)
 
 --------------------------------------------------------------------------------
 
