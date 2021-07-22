@@ -123,3 +123,4 @@ python3/
 
 # Intermediate files
 tmp.*/
+packaged-template-output.yaml
