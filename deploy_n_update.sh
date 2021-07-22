@@ -26,7 +26,7 @@ apigateway_certificate="arn:aws:acm:us-east-1:027226252545:certificate/07d4e2fc-
 # Create deployment s3 bucket if no such bucket.
 if aws s3 ls "s3://$s3_bucket_deployment" 2>&1 | grep -q 'NoSuchBucket'; then
         echo "Creating deployment s3 bucket $s3_bucket_deployment"
-        aws s3api create-bucket --bucket $s3_bucket_deployment --region $deployment_region
+        aws s3api create-bucket --bucket $s3_bucket_deployment --region $deployment_region --create-bucket-configuration LocationConstraint=$deployment_region
         aws s3api put-public-access-block \
                 --bucket $s3_bucket_deployment \
                 --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
