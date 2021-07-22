@@ -19,7 +19,7 @@ s3_bucket_deployment="$project_name-deployment-$deployment_region"
 # S3 bucket for temporary video files during analysis.
 s3_bucket_video_cache="$project_name-video-cache-$deployment_region"
 # Custom domain of API Gateway domain name.
-apigateway_domain="rgpoc02.awserverless.com"
+apigateway_domain="$project_name.awserverless.com"
 # ACM certificate that contained custom domain name.
 apigateway_certificate="arn:aws:acm:us-east-1:027226252545:certificate/07d4e2fc-bfb3-4b4e-907b-928a8fa411d6"
 

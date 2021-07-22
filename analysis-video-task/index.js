@@ -68,6 +68,8 @@ function uploadVideoObject(objectKey, passtrough) {
 function startLabelDetection(videoTaskData) {
     log.debug("StartLabelDetection on " + videoTaskData.s3key + " in s3 bucket " + VIDEO_CACHE_BUCKET);
     return new Promise((resolve, reject) => {
+        // Concat s3_bucket_name and video_id to keep idempotent of Rekognition jobs.
+        let requestToken = VIDEO_CACHE_BUCKET + '_' + videoTaskData.id;
         let params = {
             Video: {
                 S3Object: {
@@ -75,7 +77,7 @@ function startLabelDetection(videoTaskData) {
                     Name: videoTaskData.s3key
                 }
             },
-            ClientRequestToken: videoTaskData.id
+            ClientRequestToken: requestToken
         };
         
         rekognition.startLabelDetection(params, function(err, data) {
@@ -112,8 +114,8 @@ exports.handler = async function(event, context) {
         videoTaskData.s3key = videoTaskData.id + '.mp4';
         
         let currentTime = moment().format();
-        //let expireTime = moment(currentTime).add(7, 'days');
-        let expireTime = moment(currentTime).add(2, 'minutes');
+        let expireTime = moment(currentTime).add(1, 'days');
+        //let expireTime = moment(currentTime).add(2, 'minutes');
         let expireEpoch = expireTime.unix();
         videoTaskData.expire = expireEpoch;
         
