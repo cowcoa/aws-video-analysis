@@ -1,4 +1,5 @@
 #!/bin/bash
+# Init and prepare project folder, including any dependencies.
 
 # the directory of the script
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"

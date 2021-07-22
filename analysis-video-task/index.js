@@ -12,8 +12,8 @@ const AWS = require('aws-sdk');
 const rekognition = new AWS.Rekognition();
 const dynamodb = new AWS.DynamoDB();
 // Get evn variables
-const VIDEO_CACHE_BUCKET = process.env['S3_VIDEO_CACHE_BUCKET'];
-const VIDEO_TASK_DDB_TABLE = process.env['VIDEO_TASK_DDB_TABLE'];
+const VIDEO_CACHE_BUCKET = process.env['S3_BUCKET_VIDEO_CACHE'];
+const VIDEO_TASK_DDB_TABLE = process.env['DDB_TABLE_VIDEO_TASK'];
 const PYTHON_LIB_PATH = process.env['LAMBDA_TASK_ROOT'] + "/python2/lib";
 const PYTHON_BIN_PATH = process.env['LAMBDA_TASK_ROOT'] + "/python2/bin";
 
