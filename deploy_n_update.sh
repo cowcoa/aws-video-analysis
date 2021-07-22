@@ -50,7 +50,7 @@ fi
 # Create video cache s3 bucket if no such bucket.
 if aws s3 ls "s3://$s3_bucket_video_cache" 2>&1 | grep -q 'NoSuchBucket'; then
         echo "Creating video cache s3 bucket $s3_bucket_video_cache"
-        aws s3api create-bucket --bucket $s3_bucket_video_cache --region $deployment_region
+        aws s3api create-bucket --bucket $s3_bucket_video_cache --region $deployment_region --create-bucket-configuration LocationConstraint=$deployment_region
         aws s3api put-public-access-block \
                 --bucket $s3_bucket_video_cache \
                 --public-access-block-configuration "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
