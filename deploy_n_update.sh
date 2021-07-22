@@ -21,6 +21,7 @@ s3_bucket_video_cache="$project_name-video-cache-$deployment_region"
 # Custom domain of API Gateway domain name.
 apigateway_domain="$project_name.awserverless.com"
 # ACM certificate that contained custom domain name.
+# NOTE: You can ONLY use the certificate created in us-east-1.
 apigateway_certificate="arn:aws:acm:us-east-1:027226252545:certificate/07d4e2fc-bfb3-4b4e-907b-928a8fa411d6"
 
 # Create deployment s3 bucket if no such bucket.
