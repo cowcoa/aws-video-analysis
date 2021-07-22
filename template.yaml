@@ -157,8 +157,8 @@ Resources:
         - AttributeName: VideoUrl
           KeyType: HASH
       ProvisionedThroughput:
-        ReadCapacityUnits: '1'
-        WriteCapacityUnits: '1'
+        ReadCapacityUnits: '25'
+        WriteCapacityUnits: '25'
       TableName: !Join ['-', [!Ref ResourceNamePrefix, 'VideoAnalysisTask']]
       TimeToLiveSpecification:
         AttributeName: TimeToLive
