@@ -1,4 +1,7 @@
-## Deployment Steps:
+## AWS Video Analysis
+![alt text](architecture_diagram.jpg?raw=true)
+
+### Deployment Steps:
 
 1. Create an ACM certificate containing Api Gateway custom domain name, record the ARN of the certificate.
 2. Create Cloud9 environment and log in.
